@@ -1,0 +1,64 @@
+---
+title: "eds223-homework-2"
+format: html
+editor: visual
+---
+
+# Redlining and environmental inustice:
+
+## Peter Vitale
+
+In this project tktktkt:
+
+-   
+-   
+
+I'm going to start by reading in the data on ()
+```{r}
+ #| message: false 
+ #| warning: false
+ #First, I'm going to load the necessary packages using p_load 
+pacman::p_load('tidyverse', 'sf', 'here', 'tmap')
+```
+
+
+
+# Read in geodatabase of EJScreen data at the Census Block Group level
+```{r}
+ejscreen <- sf::st_read(here::here("data", "ejscreen", "EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb"))
+
+#Lets filter that to be a bit more specific 
+
+california <- ejscreen %>%
+  dplyr::filter(ST_ABBREV == "CA") 
+
+# Filter to San Francisco Bay 
+la_county <- ejscreen %>%
+  dplyr::filter(CNTY_NAME %in% 'Los Angeles County')
+
+gbif <-  sf::st_read(here::here("data", "gbif-birds-LA", "gbif-birds-LA.shp"))
+
+inequality <-  sf::st_read(here::here("data", "mapping-inequality", "mapping-inequality-los-angeles.json"))
+```
+
+I am now going to make a map of the HOLC redlining. 
+
+```{r}
+#First lets set up our bounding box
+bbox_main <- st_bbox(c(xmin = -117.646374 , 
+                       xmax = -118.951721 , 
+                       ymax = 34.81 , 
+                       ymin = 	32.8	),
+                     crs = 4326) # This sets the bounding box and crs which aid in the view of the San Francisco Bay 
+	
+tm_shape(la_county, bbox = bbox_main)+
+  tm_crs(4326)+
+  tm_polygons(lty = 'blank')+
+tm_shape(inequality)+
+  tm_polygons(fill = 'grade'
+              )
+
+
+```
+
+
