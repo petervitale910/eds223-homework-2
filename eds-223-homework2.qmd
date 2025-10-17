@@ -43,7 +43,7 @@ california <- ejscreen %>%
 # Filter to San Francisco Bay 
 la_county <- ejscreen %>%
   dplyr::filter(CNTY_NAME %in% c("Los Angeles County", "Orange County", "San Bernardino County")) %>%   # These counties make up our area
-  st_transform(crs = 4326) %>%  # Making the CRS match the other datasets
+  st_transform(crs = st_crs(inequality)) %>%  # Making the CRS match the other datasets
   filter(AREALAND != 0) # Turns off the coast, making plotting prettier
 
 gbif <-  sf::st_read(here::here("data", "gbif-birds-LA", "gbif-birds-LA.shp"))
@@ -82,7 +82,8 @@ I want to make a table that summarizes the percentage of census block groups tha
 I first need to join `la_county` and `inequality`
 
 ```{r}
-sf_use_s2(FALSE) # This is a solution I found to it not working, turning off s2
+
+inequality <- st_make_valid(inequality)
 
 la_holc_ej_join <- st_join(inequality, la_county) # Join my two 
 
@@ -167,7 +168,6 @@ The first thing I need to do is merge `gbif` and `inequality`
 
 ```{r}
 #| message: false
-sf_use_s2(FALSE)
 
 holc_bird_df <- st_join(inequality, gbif) 
 
