@@ -11,19 +11,25 @@ editor: visual
 In this project tktktkt:
 
 -   
+
 -   
 
 I'm going to start by reading in the data on ()
+
 ```{r}
  #| message: false 
  #| warning: false
  #First, I'm going to load the necessary packages using p_load 
-pacman::p_load('tidyverse', 'sf', 'here', 'tmap')
+pacman::p_load('tidyverse', 
+               'sf', 
+               'here', 
+               'tmap', 
+               'kableExtra',
+               'patchwork')
 ```
 
-
-
 # Read in geodatabase of EJScreen data at the Census Block Group level
+
 ```{r}
 ejscreen <- sf::st_read(here::here("data", "ejscreen", "EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb"))
 
@@ -34,31 +40,139 @@ california <- ejscreen %>%
 
 # Filter to San Francisco Bay 
 la_county <- ejscreen %>%
-  dplyr::filter(CNTY_NAME %in% 'Los Angeles County')
+  dplyr::filter(CNTY_NAME %in% c("Los Angeles County", "Orange County", "San Bernardino County")) %>%   st_transform(crs = 4326) %>% 
+  filter(AREALAND != 0)
 
 gbif <-  sf::st_read(here::here("data", "gbif-birds-LA", "gbif-birds-LA.shp"))
 
 inequality <-  sf::st_read(here::here("data", "mapping-inequality", "mapping-inequality-los-angeles.json"))
 ```
-
-I am now going to make a map of the HOLC redlining. 
+## Part One
+### 1.1 I am now going to make a map of the HOLC redlining.
 
 ```{r}
-#First lets set up our bounding box
-bbox_main <- st_bbox(c(xmin = -117.646374 , 
-                       xmax = -118.951721 , 
-                       ymax = 34.81 , 
-                       ymin = 	32.8	),
-                     crs = 4326) # This sets the bounding box and crs which aid in the view of the San Francisco Bay 
-	
-tm_shape(la_county, bbox = bbox_main)+
+tm_shape(la_county, bbox = st_bbox(inequality))+
   tm_crs(4326)+
-  tm_polygons(lty = 'blank')+
+  tm_polygons(fill = 'grey',lty = 'blank')+
+  tm_title('Historic Redlining indicators in Los Angeles County')+
+  tm_layout(bg.color = 'blue')+
 tm_shape(inequality)+
-  tm_polygons(fill = 'grade'
-              )
+  tm_polygons(fill = 'grade', 
+              fill.scale = tm_scale(values = c('#646D4E','#C1A863', '#879595','#9E5D67' )),
+              fill.legend = tm_legend(title = 'Grade', na.show = FALSE))+
+tm_compass(type = 'rose', position = c('right','top'), size = 3)+
+tm_scale_bar(position = c('right','top'))
 
 
 ```
+### 1.2 
+
+I want to make a table that summarizes the percentage of census block groups that fall in each grade
+
+I first need to join `la_county` and `inequality`
+
+```{r}
+sf_use_s2(FALSE)
+
+la_holc_ej_join <- st_join(inequality, la_county)
+
+la_holc_ej_join <- st_drop_geometry(la_holc_ej_join)
+
+# Now I'm going to take a proportion of the census block groups that fall in to each grade. 
+
+percentage_grade_df <- la_holc_ej_join %>% 
+  group_by(grade) %>% 
+  summarise(num_of = n()) %>% 
+  mutate(grade_percentage = round(x= (num_of / sum(num_of)) * 100, digits = 2)) %>% 
+  ungroup()
+
+# And now I can make that table
+
+kbl(percentage_grade_df, 
+      col.names = c("Grade", "Count", "Percentage (%)") ) %>% 
+    kable_classic(full_width = F, html_font = "Cambria") %>% 
+  footnote(number = "Table 1. Census Block Group Percentage by HOLC Grade")
 
 
+
+```
+### 1.3
+  
+I want to make plots to see how redlining is related to some environmental justice issues
+
+First I need to take means of my variables of interest
+```{r}
+ej_mean_data <- la_holc_ej_join %>% 
+  group_by(grade) %>% 
+  summarise(mean_low_income = mean(LOWINCPCT), mean_particulate_percent = mean(P_D2_PM25), mean_low_life_percent = mean(P_LIFEEXPPCT, na.rm = TRUE))
+```
+
+```{r}
+ p1 <- ggplot(ej_mean_data, aes(x = grade, y = mean_low_income, fill = grade))+
+  geom_col()+
+  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  labs(x = 'HOLC Grade',
+       y = 'Mean Percent Low income')+
+  theme(legend.position = 'none')
+
+ p2 <- ggplot(ej_mean_data, aes(x = grade, y = mean_particulate_percent, fill = grade))+
+  geom_col()+
+  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  labs(x = 'HOLC Grade',
+       y = 'Mean Particulate Percentile')+
+  theme(legend.position = 'none')
+ 
+ p3 <- ggplot(ej_mean_data, aes(x = grade, y = mean_low_life_percent, fill = grade))+
+  geom_col()+
+  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  labs(x = 'HOLC Grade',
+       y = 'Mean Percentile with Low Life Expectancy')+
+  theme(legend.position = 'none')
+
+
+ (p1|p2|p3)+
+   plot_annotation(
+  title = 'Mean Percentile with Low Life Expectancy, Particulate Percentile,',
+  subtitle = 'and Percent Low Income in Historically Redlined Communities')
+```
+### 1.4
+
+## Part Two 
+
+A figure summarizing the percent of observations within redlined neighborhoods within each HOLC grade
+
+Create a visualizations that shows:
+
+The percentage of bird observations within each HOLC grade
+Include an appropiate title, axis labels, and legend
+Hints: Ensure the bird observations and HOLC dataset have matching CRS’, then perform a spatial join to assign each bird observations to a corresponding HOLC grade.
+
+I want to create a plot of percent of bird observations in each HOLC grade
+
+The first thing I need to do is merge `gbif` and  `inequality`
+```{r}
+sf_use_s2(FALSE)
+
+holc_bird_df <- st_join(inequality, gbif) 
+
+holc_bird_df <- holc_bird_df %>% 
+  group_by(grade) %>% 
+  summarize(num_of = n()) %>% 
+  mutate(grade_percentage = round(x= (num_of / sum(num_of)) * 100, digits = 2)) %>% 
+  ungroup()
+```
+Now I can make a bar plot comparing bird counts and HOLC Grade
+
+```{r}
+ggplot(holc_bird_df, aes(x = grade, y = grade_percentage))+
+  geom_col(aes(fill = grade))+
+  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  labs(x = 'HOLC Grade',
+       y = 'Mean Bird Observations',
+       title = 'Percent of Bird Observations in HOLC Grades')+
+  theme(legend.position = 'none')
+```
+
+
+
+  
