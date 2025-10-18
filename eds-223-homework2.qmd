@@ -1,25 +1,29 @@
 ---
-title: "eds223-homework-2"
+title: "Homework 2: Redlining and environmental injustice"
+author: 'Peter Vitale'
+date: '10/18/25'
 format: html
 editor: visual
+execute: 
+  cache: true
+  warning: false
+  message: false
 ---
 
-# Redlining and environmental inustice:
 
 ## Peter Vitale
 
-In this project tktktkt:
+In this project we will examine environmental injustices in historically redlined communities by:
 
--   
+-   Mapping historically redlined communities
 
--   
+-   Comparing the relationship between Low income %, Particulate percentile, and Low Lifespan percentile with HOLC grades
 
-I'm going to start by reading in the data on ()
+-   Examining the relationship between bird observations and HOLC grades
+
+I'm going to start by loading in the neccesary packages
 
 ```{r}
- #| message: false 
- #| warning: false
- #First, I'm going to load the necessary packages using p_load 
 pacman::p_load('tidyverse', 
                'sf', 
                'here', 
@@ -30,62 +34,81 @@ pacman::p_load('tidyverse',
 ```
 
 ### Data Aggregation
-Read in geodatabase of EJScreen data at the Census Block Group level
+
+Read in the HOLC data, EJscreen, and GBIF datasets
 
 ```{r}
-ejscreen <- sf::st_read(here::here("data", "ejscreen", "EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb"))
+holc <-  sf::st_read(here::here("data", "mapping-inequality", "mapping-inequality-los-angeles.json"), quiet = TRUE) # Redlining dataset
 
-#Lets filter that to be a bit more specific 
+ejscreen <- sf::st_read(here::here("data",
+                                   "ejscreen",
+                            "EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb"),
+                        quiet = TRUE)
+
+# Lets filter that to be a bit more specific 
 
 california <- ejscreen %>%
   dplyr::filter(ST_ABBREV == "CA") 
 
-# Filter to San Francisco Bay 
+# Filter to LA and surrounding counties
+
 la_county <- ejscreen %>%
-  dplyr::filter(CNTY_NAME %in% c("Los Angeles County", "Orange County", "San Bernardino County")) %>%   # These counties make up our area
-  st_transform(crs = st_crs(inequality)) %>%  # Making the CRS match the other datasets
+  dplyr::filter(CNTY_NAME %in% c("Los Angeles County", 
+                                 "Orange County", 
+                                 "San Bernardino County")) %>%   
+  # These counties make up our area
+  st_transform(crs = st_crs(holc)) %>%  # Making the CRS match the other datasets
   filter(AREALAND != 0) # Turns off the coast, making plotting prettier
 
-gbif <-  sf::st_read(here::here("data", "gbif-birds-LA", "gbif-birds-LA.shp"))
+gbif <-  sf::st_read(here::here("data", 
+                                "gbif-birds-LA", 
+                                "gbif-birds-LA.shp"),
+                     quiet = TRUE) # Bird data
 
-inequality <-  sf::st_read(here::here("data", "mapping-inequality", "mapping-inequality-los-angeles.json"))
+
 ```
 
 ## Part One
 
-### 1.1 
+### 1.1
+
 I am now going to make a map of the HOLC redlining.
 
 ```{r}
-tm_shape(la_county, bbox = st_bbox(inequality))+ # We set the bbox as inequality
+tm_shape(la_county, bbox = st_bbox(holc))+ # We set the bbox as holc
   tm_crs(4326)+
   tm_polygons(fill = 'grey',lty = 'blank')+ # Fill for my base map
   tm_title('Historic Redlining indicators in Los Angeles County')+
   tm_layout(bg.color = 'blue')+ # Fill for the Water
-tm_shape(inequality)+
+tm_shape(holc)+
   tm_polygons(fill = 'grade', 
-              fill.scale = tm_scale(values = c('#646D4E','#C1A863', '#879595','#9E5D67' )),
+              fill.scale = tm_scale(values = c('#646D4E',
+                                               '#C1A863', 
+                                               '#879595',
+                                               '#9E5D67' )),
               fill.legend = tm_legend(title = 'Grade', na.show = FALSE))+ 
   # Took na's out of legend
 tm_compass(type = 'rose', position = c('right','top'), size = 3)+ # Compass Rose
 tm_scalebar(position = c('right','top'))+
   tmap_options(component.autoscale = FALSE) # Turn off autoscale
-# I set component.autoscale to false so i could be more in control of the components
+
 
 
 ```
+ I set component.autoscale to false so i could be more in control of the components
 
 ### 1.2
 
 I want to make a table that summarizes the percentage of census block groups that fall in each grade
 
-I first need to join `la_county` and `inequality`
+I first need to join `la_county` and `holc`
 
 ```{r}
 
-inequality <- st_make_valid(inequality)
+# I have to make the HOLC Data have a valid st
+holc <- st_make_valid(holc)
 
-la_holc_ej_join <- st_join(inequality, la_county) # Join my two 
+la_holc_ej_join <- st_join(holc, la_county) # Join my two datasets
 
 la_holc_ej_join <- st_drop_geometry(la_holc_ej_join) # Drop the geometry
 
@@ -94,7 +117,8 @@ la_holc_ej_join <- st_drop_geometry(la_holc_ej_join) # Drop the geometry
 percentage_grade_df <- la_holc_ej_join %>% 
   group_by(grade) %>% 
   summarise(num_of = n()) %>% # Find sum of counts
-  mutate(grade_percentage = round(x= (num_of / sum(num_of)) * 100, digits = 2)) %>% 
+  mutate(grade_percentage = round(x= (num_of / sum(num_of)) * 100, 
+                                  digits = 2)) %>% 
   # This takes the average of the sum
   ungroup()
 
@@ -119,30 +143,47 @@ First I need to take means of my variables of interest
 ```{r}
 ej_mean_data <- la_holc_ej_join %>% 
   group_by(grade) %>% 
-  summarise(mean_low_income = mean(LOWINCPCT), mean_particulate_percent = mean(P_D2_PM25), mean_low_life_percent = mean(P_LIFEEXPPCT, na.rm = TRUE))
+  summarise(mean_low_income = mean(LOWINCPCT), 
+            mean_particulate_percent = mean(P_D2_PM25), 
+            mean_low_life_percent = mean(P_LIFEEXPPCT, na.rm = TRUE))
 # Here I used the summarise function to get a bunch of means at once. 
 ```
 
 ```{r}
- p1 <- ggplot(ej_mean_data, aes(x = grade, y = mean_low_income, fill = grade))+
+ p1 <- ggplot(ej_mean_data, aes(x = grade, 
+                                y = mean_low_income, 
+                                fill = grade))+
   geom_col()+ # This makes a bar graph with x and y axes
-  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  scale_fill_manual(values = c('#ABC798',
+                               '#C1DABD', 
+                               '#E6983F',
+                               '#A0185A' ))+
   labs(x = 'HOLC Grade',
        y = 'Mean Percent Low income')+
   theme_clean()+
   theme(legend.position = 'none')
 
- p2 <- ggplot(ej_mean_data, aes(x = grade, y = mean_particulate_percent, fill = grade))+
+ p2 <- ggplot(ej_mean_data, aes(x = grade, 
+                                y = mean_particulate_percent, 
+                                fill = grade))+
   geom_col()+
-  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  scale_fill_manual(values = c('#ABC798',
+                               '#C1DABD',
+                               '#E6983F',
+                               '#A0185A' ))+
   labs(x = 'HOLC Grade',
        y = 'Mean Particulate Percentile')+
    theme_clean()+
   theme(legend.position = 'none')
  
- p3 <- ggplot(ej_mean_data, aes(x = grade, y = mean_low_life_percent, fill = grade))+
+ p3 <- ggplot(ej_mean_data, aes(x = grade, 
+                                y = mean_low_life_percent, 
+                                fill = grade))+
   geom_col()+
-  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  scale_fill_manual(values = c('#ABC798',
+                               '#C1DABD', 
+                               '#E6983F',
+                               '#A0185A' ))+
   labs(x = 'HOLC Grade',
        y = 'Mean Percentile with Low Life Expectancy')+
    theme_clean()+
@@ -151,12 +192,16 @@ ej_mean_data <- la_holc_ej_join %>%
 
  (p1|p2|p3)+ # Use patchwork to stitch together
    plot_annotation(
-  title = 'Mean Percentile with Low Life Expectancy, Particulate Percentile,',
-  subtitle = 'and Percent Low Income in Historically Redlined Communities')
+  title = 'Mean Percentile with Low Income, Particulate Percentile,',
+  subtitle = 'and Percent Low Life Expectancy in Historically Redlined Communities')
    
 ```
 
 ### 1.4
+
+Plot summary: 
+In these plots we can see that each variable (Percent low income, Percentile of particulates, and Percentile low life expectancy) peaks in neighborhoods given a D holc grade. This indicates that these communities being considered less desireable led them to not having investment. This in turn led to worsening environmental conditions, lower life expectancy, and concentration of low income communities which can lead to a whole host of other issues. 
+
 
 ## Part Two
 
@@ -164,17 +209,20 @@ ej_mean_data <- la_holc_ej_join %>%
 
 I want to create a plot of percent of bird observations in each HOLC grade
 
-The first thing I need to do is merge `gbif` and `inequality`
+The first thing I need to do is merge `gbif` and `HOLC`
 
 ```{r}
-#| message: false
+sf_use_s2(FALSE) # Despite the crs's matching and both being valid this next bit was giving me trouble until I found this on substack
 
-holc_bird_df <- st_join(inequality, gbif) 
+
+holc_bird_df <- st_join(holc, gbif) 
+
 
 holc_bird_df <- holc_bird_df %>% 
   group_by(grade) %>% 
   summarize(num_of = n()) %>% 
-  mutate(grade_percentage = round(x= (num_of / sum(num_of)) * 100, digits = 2)) %>% 
+  mutate(grade_percentage = round(x= (num_of / sum(num_of)) * 100, 
+                                  digits = 2)) %>% 
   ungroup()
 ```
 
@@ -183,7 +231,10 @@ Now I can make a bar plot comparing bird counts and HOLC Grade
 ```{r}
 ggplot(holc_bird_df, aes(x = grade, y = grade_percentage))+
   geom_col(aes(fill = grade))+
-  scale_fill_manual(values = c('#ABC798','#C1DABD', '#E6983F','#A0185A' ))+
+  scale_fill_manual(values = c('#ABC798',
+                               '#C1DABD', 
+                               '#E6983F',
+                               '#A0185A' ))+
   labs(x = 'HOLC Grade',
        y = 'Mean Bird Observations',
        title = 'Percent of Bird Observations in HOLC Grades')+
@@ -191,3 +242,21 @@ ggplot(holc_bird_df, aes(x = grade, y = grade_percentage))+
   theme(legend.position = 'none')
   
 ```
+
+
+### 2.2 
+
+Summary: 
+
+In this plot we see, despite lack of investment, bird communities seem to thrive in C - grade areas. This indicates that bird abundance may either be geographically linked to the same areas given a C grade. Another plausible reason for this correlation is that certain bird species (generalists) are more suited to urban conditions. This plot was particularly intersting because the capstone I just worked to propose actually deals with the abundance of birds in different GAP statuses, to determine where funding would be used besr. I see an intersection in this plot where we have an area that has more birds than others, despite the lack of funding, which historically was thought to be 'undesireable'. 
+
+# References
+
+#### Data
+
+United States Environmental Protection Agency. 2015. EJSCREEN. Retrieved: November 5th 2025 from [epa.gov](www.epa.gov/ejscreen )
+
+Nelson, Robert K., LaDale Winling, et al. "Mapping Inequality: Redlining in New Deal America." Edited by Robert K. Nelson. American Panorama: An Atlas of United States History, 2023. Retrieved: October 16th 2025 from [https://dsl.richmond.edu/panorama/redlining](https://dsl.richmond.edu/panorama/redlining/data) 
+
+GBIF: The Global Biodiversity Information Facility (2021) GBIF. Retrieved: October 16th 2025 from (https://www.gbif.org/)
+
