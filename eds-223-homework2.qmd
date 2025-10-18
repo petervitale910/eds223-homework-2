@@ -144,7 +144,7 @@ First I need to take means of my variables of interest
 ej_mean_data <- la_holc_ej_join %>% 
   group_by(grade) %>% 
   summarise(mean_low_income = mean(LOWINCPCT), 
-            mean_particulate_percent = mean(P_D2_PM25), 
+            mean_particulate_percent = mean(P_PM25), 
             mean_low_life_percent = mean(P_LIFEEXPPCT, na.rm = TRUE))
 # Here I used the summarise function to get a bunch of means at once. 
 ```
@@ -258,5 +258,5 @@ United States Environmental Protection Agency. 2015. EJSCREEN. Retrieved: Novemb
 
 Nelson, Robert K., LaDale Winling, et al. "Mapping Inequality: Redlining in New Deal America." Edited by Robert K. Nelson. American Panorama: An Atlas of United States History, 2023. Retrieved: October 16th 2025 from [https://dsl.richmond.edu/panorama/redlining](https://dsl.richmond.edu/panorama/redlining/data) 
 
-GBIF: The Global Biodiversity Information Facility (2021) GBIF. Retrieved: October 16th 2025 from (https://www.gbif.org/)
+GBIF: The Global Biodiversity Information Facility (2021) GBIF. Retrieved: October 16th 2025 from [https://www.gbif.org/](https://www.gbif.org/)
 
